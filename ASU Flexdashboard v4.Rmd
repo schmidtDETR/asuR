@@ -19,6 +19,8 @@ library(tidyverse)
 library(readxl)
 library(mapview)
 
+options(shiny.maxRequestSize = 50 * 1024^2)  # Set to 50MB or your desired limit
+
 # Initialize reactive values
 uploaded_data <- reactiveVal(NULL)
 state <- reactiveVal(NULL)
@@ -128,8 +130,6 @@ observeEvent(input$file, {
   output$data_preview <- renderTable({
     head(uploaded_data(),50)
     
-    
-    
   })
   
   output$selected_state <- renderText({
@@ -160,9 +160,7 @@ Once this step is done, you may proceed to the next step.
 
 ```{r}
 actionButton("process", "Load Tracts and Initialize ASU")
-
 tableOutput("asu")
-
 
 observeEvent(input$process, {
   
@@ -596,6 +594,106 @@ observeEvent(input$reset, {
 
 
 ```
+
+Save and Load Data
+==========================
+
+## Controls  {data-width=150}
+
+These buttons allow you to save the map in progress so that you can load it again in the future to continue your work.
+
+The save file will land in your working directory, and the path will be noted when you save.
+
+After loading data, you can go directly to the ASU Modification tab to continue making edits.
+
+```{r}
+
+actionButton("save_data", "Save Data")
+fileInput("load_data", "Load Data", accept = c(".rds"))
+
+# Observer for saving the data
+observeEvent(input$save_data, {
+  req(full_data())
+  
+  # Specify the file path in the current working directory
+  save_path <- file.path(getwd(), "saved_data.rds")
+  
+  # Save the full_data object to an RDS file
+  saveRDS(full_data(), save_path)
+  
+  # Provide feedback to the user
+  showModal(modalDialog(
+    title = "Data Saved",
+    paste("Your data has been saved to:", save_path)
+  ))
+})
+
+# Observer for loading the data
+observeEvent(input$load_data, {
+  req(input$load_data)
+  
+  # Read the RDS file into a data frame
+  loaded_data <- tryCatch({
+    readRDS(input$load_data$datapath)
+  }, error = function(e) {
+    showModal(modalDialog(
+      title = "Error Loading Data",
+      "Failed to load the data. Please check the file format.",
+      easyClose = TRUE
+    ))
+    return(NULL)
+  })
+  
+  # If loaded_data is NULL (failed to load), exit the observer
+  req(!is.null(loaded_data))
+  
+  # Ensure the loaded data is an sf object
+  if (!inherits(loaded_data, "sf")) {
+    showModal(modalDialog(
+      title = "Error Loading Data",
+      "The loaded data is not a valid sf object.",
+      easyClose = TRUE
+    ))
+    return(NULL)
+  }
+  
+  # Update full_data with the loaded data
+  full_data(loaded_data)
+  
+  # Provide feedback to the user
+  showModal(modalDialog(
+    title = "Data Loaded",
+    "Your data has been successfully loaded.",
+    easyClose = TRUE
+  ))
+    
+    # Update the map to reflect the loaded data
+  dynamic_palette <- colorNumeric(palette = "viridis", domain = full_data()$asunum)
+  
+    leafletProxy("edit_map") %>%
+      clearGroup("tracts") %>%
+      addPolygons(data = full_data(), 
+                  layerId = ~GEOID, weight = 1, color = "black", fillOpacity = 0.5, 
+                  fillColor = ~ifelse(asunum != 0, 
+                                      dynamic_palette(asunum), 
+                                      "#444444"), 
+                  label = ~paste0("ASU: ", asunum,
+                                  " || GEOID: ", GEOID,
+                                  " || Unemployment Rate: ", tract_ASU_urate,
+                                  " || Unemployment: ", tract_ASU_unemp,
+                                  " || Population: ", tract_pop_cur),
+                  highlightOptions = highlightOptions(color = "white", weight = 2, bringToFront = TRUE))
+  })
+
+```
+
+## Output {data-width=850}
+
+```{r}
+
+```
+
+
 
 ASU Review and Finalization
 ==========================
