@@ -1,3 +1,5 @@
+NOTE: This repository is being archived as of DEcember 2025.  The functionality of the package has been improved and is now located in the ASUbuildR repository, chosen to avoid naming conflicts with other R packages.
+
 This package is designed to improve the process by which states create Areas of Substantial Unemployment.
 
 Use of this file requires a file supplied by the Bureau of Labor statistics, of the form ST_asYY.xlsx, where ST is the state abbreviation
